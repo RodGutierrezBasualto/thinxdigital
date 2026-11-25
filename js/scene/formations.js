@@ -201,8 +201,9 @@ export function createFormations() {
       const { hh, hw } = view(60);
       const x0 = portrait ? -hw * 0.78 : -hw * 0.78;
       const x1 = portrait ? hw * 0.62 : hw * 0.74;
-      const y0 = portrait ? -hh * 0.72 : -hh * 0.7;
-      const y1 = portrait ? hh * 0.02 : hh * 0.22;
+      // portrait: kept in the lower part of the screen, under the statement and its ad-type icons
+      const y0 = portrait ? -hh * 0.8 : -hh * 0.7;
+      const y1 = portrait ? -hh * 0.26 : hh * 0.22;
       const P = (u, v) => new THREE.Vector3(lerp(x0, x1, u), lerp(y0, y1, v), -60);
       const pts = [P(0, 0.02), P(0.36, 0.48), P(0.5, 0.33), P(1, 1)];
       curveInfo.path = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.05);
@@ -281,6 +282,7 @@ export function createFormations() {
       ringInfo.center.set(portrait ? 0 : hw * 0.45, portrait ? -hh * 0.32 : 0, -60);
       ringInfo.scale = portrait ? hw * 1.05 : hw * 0.4;
       credInfo.center.set(0, -hh * 0.04, -60);
+      credInfo.hh = hh; // lets a spec shift the ring (spec.dy, in half screen heights) — the home statement's cards sit lower
       credInfo.scale = portrait ? hw * 0.95 : Math.min(hh * 1.05, hw * 0.75);
     }
 
@@ -412,6 +414,7 @@ export function createFormations() {
           const a = Math.atan2(y, x) + turn;
           const rad = Math.hypot(x, y);
           _v.set(Math.cos(a) * rad, Math.sin(a) * rad, 0).multiplyScalar(info.scale * 0.85).applyQuaternion(_q).add(info.center);
+          if (spec.dy && info === credInfo) _v.y += spec.dy * credInfo.hh;
           out[i].set(_v.x, _v.y, _v.z, s * info.scale * 0.13);
         });
         break;

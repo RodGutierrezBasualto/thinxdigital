@@ -9,7 +9,7 @@
 // beats: the home hero turns blue → white inside the hero (white reveal p .05 → .35) and the home dashboard (vr) opens
 // a black portal from the centre (p .25 → .45) and goes back to white under a veil (p .86 → .9).
 //
-// Orbs (see formations.js): home = cloud → halo → growth curve → drift away … footer cloud; inner pages = their
+// Orbs (see formations.js): home = cloud → halo → ring around the statement's cards → drift away … footer cloud; inner pages = their
 // page-hero formation (config PAGE_HERO) drifting away as the hero leaves, approach `principles` ★ and about
 // `credentials` ★ fly in from below, every page ends with the footer cloud.
 
@@ -83,8 +83,8 @@ export function createChoreography() {
         current = 'white';
       }
       if (home && sec.key === 'vr') {
-        schedule.push({ color: 'black', mode: 'portal', y0: S.pAt('vr', 0.25), y1: S.pAt('vr', 0.45) });
-        schedule.push({ color: 'white', mode: 'fade', y0: S.pAt('vr', 0.86), y1: S.pAt('vr', 0.9) });
+        schedule.push({ color: 'black', mode: 'portal', y0: S.pAt('vr', 0), y1: S.pAt('vr', 0.16) });
+        schedule.push({ color: 'white', mode: 'fade', y0: S.pAt('vr', 0.82), y1: S.pAt('vr', 0.86) });
         current = 'white';
       }
     });
@@ -208,16 +208,17 @@ export function createChoreography() {
         const e = ramp(y, S.enterAt('statement', 0.1), statementT);
         plan.a = { kind: 'halo', scale: 1 - easeInQuad(e), drift: e * 0.35 };
         plan.idle = 0.35;
-      } else if (y < resultsIn) {
-        plan.a = { kind: 'curve', pop: ramp(statementP, 0.02, 0.8) };
-        plan.idle = 0.12;
-        o.arrow.draw = ramp(statementP, 0.2, 0.92);
       } else if (y < S.enterAt('results', 1)) {
-        const e = ramp(y, resultsIn, S.enterAt('results', 0.9));
-        plan.a = { kind: 'curve', pop: 1, drift: e };
-        plan.idle = 0.12;
-        o.arrow.draw = 1;
-        o.arrow.erase = easeInOutCubic(ramp(e, 0, 0.7));
+        // the statement's ad-type cards: the glass dots ring around them like a planet's ring (as on /about),
+        // rising in with the cards and drifting off as the results come up
+        plan.a = {
+          kind: 'credentials',
+          dy: portrait ? -0.3 : -0.26,
+          rise: easeOutCubic(ramp(statementP, 0.16, 0.4)),
+          drift: ramp(y, resultsIn, S.enterAt('results', 0.9)),
+          spin: statementP,
+        };
+        plan.idle = 0.1;
       } else {
         plan.a = { kind: 'hidden' };
       }
@@ -256,11 +257,11 @@ export function createChoreography() {
     const R = 10;
     // distance at which the sphere fills ~80% of the screen height (landscape) or width (portrait)
     const fit = portrait ? R / (0.8 * TAN * aspect) : R / (0.8 * TAN);
-    const arrive = easeOutQuad(ramp(vrP, 0.4, 0.66));
-    const dive = easeInQuad(ramp(vrP, 0.5, 0.9));
+    const arrive = easeOutQuad(ramp(vrP, 0.12, 0.42));
+    const dive = easeInQuad(ramp(vrP, 0.26, 0.86));
     const dist = lerp(fit, 12, dive);
-    sp.visible = home && S.has('vr') && vrP > 0.38 && vrP < 0.93;
-    sp.scale = easeOutQuad(ramp(vrP, 0.4, 0.6));
+    sp.visible = home && S.has('vr') && vrP > 0.1 && vrP < 0.9;
+    sp.scale = easeOutQuad(ramp(vrP, 0.12, 0.34));
     sp.push = 1 + 0.7 * dive;
     // on wide screens it settles a little left of centre (the DOM copy is on the right); on portrait, higher up
     const restX = portrait ? 0 : -fit * TAN * aspect * 0.2 * (1 - dive);
@@ -270,15 +271,15 @@ export function createChoreography() {
     sp.tilt = 0.32 - dive * 0.2;
     sp.inside = smooth(clamp((R * sp.push - dist) / 4 + 0.5));
 
-    const v1 = ramp(vrP, 0.65, 0.82) * 0.06; // a faint haze first (keeps the white DOM copy readable)
-    const v2 = easeInQuad(ramp(vrP, 0.82, 0.9));
-    const v3 = ramp(vrP, 0.9, 1);
-    state.veil = !sp.visible && (vrP <= 0 || vrP >= 1) ? 0 : vrP >= 0.9 ? 1 - smooth(v3) : Math.max(v1, v2);
+    const v1 = ramp(vrP, 0.52, 0.76) * 0.06; // a faint haze first (keeps the white DOM copy readable)
+    const v2 = easeInQuad(ramp(vrP, 0.76, 0.86));
+    const v3 = ramp(vrP, 0.86, 1);
+    state.veil = !sp.visible && (vrP <= 0 || vrP >= 1) ? 0 : vrP >= 0.86 ? 1 - smooth(v3) : Math.max(v1, v2);
     if (!home || vrP <= 0 || vrP >= 1) state.veil = 0;
 
-    const bumpE = ramp(vrP, 0.25, 0.62);
+    const bumpE = ramp(vrP, 0.0, 0.4);
     const bump = bumpE > 0 && bumpE < 1 ? Math.sin(Math.PI * (1 - (1 - bumpE) ** 1.7)) : 0;
-    state.rgb = home ? bump * 0.005 + (vrP < 0.9 ? easeInQuad(ramp(vrP, 0.62, 0.9)) * 0.004 : 0) : 0;
+    state.rgb = home ? bump * 0.005 + (vrP < 0.86 ? easeInQuad(ramp(vrP, 0.4, 0.86)) * 0.004 : 0) : 0;
 
     return state;
   }

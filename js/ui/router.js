@@ -19,7 +19,6 @@ import { gsap, html, qs, RM, lenis, emit, lockScroll, unlockScroll, scrollToHash
 export const ROUTES = {
   '/': 'home',
   '/results/': 'results',
-  '/approach/': 'approach',
   '/services/': 'services',
   '/about/': 'about',
   '/contact/': 'contact',

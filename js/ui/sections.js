@@ -62,6 +62,52 @@ function softReveal(el, { start = 'top 90%', end = 'bottom 65%' } = {}) {
   ScrollTrigger.create({ trigger: el, start, end, onUpdate: set, onRefresh: set });
 }
 
+/**
+ * Cards that rise as a stack, fan out like a hand, then turn on a 3D ring as the (sticky) section scrolls.
+ * Used by the home statement (ad types) and /about credentials. Ranges are [start, length] in section progress.
+ */
+function orbitCards(s, cards, { enter: [e0, eL], fan: [f0, fL], ring: [r0, rL] }) {
+  const n = cards.length;
+  if (!n) return;
+  const place = (p) => {
+    const W = innerWidth;
+    const cw = cards[0].offsetWidth;
+    const mobile = W < 768;
+    const enter = clamp((p - e0) / eL);            // stack rises in
+    const fan = clamp((p - f0) / fL);              // stack → fan
+    const ring = clamp((p - r0) / rL);             // fan → turning ring
+    const R = mobile ? W * 0.55 : Math.min(W * 0.34, cw * 1.35);
+    cards.forEach((card, i) => {
+      const k = i - (n - 1) / 2;                   // centred index
+      // stack: slight offsets
+      const sx = k * 6, sy = k * -6, sr = k * 2;
+      // fan: cards spread like a hand
+      const fx = k * (mobile ? cw * 0.28 : cw * 0.5);
+      const fy = Math.abs(k) * (mobile ? 14 : 24);
+      const fr = k * (mobile ? 7 : 9);
+      // ring: positions on a circle in the XZ plane, turning with scroll
+      const a = (k / n) * Math.PI * 2 + ring * Math.PI * 1.6;
+      const rx = Math.sin(a) * R;
+      const rz = (Math.cos(a) - 1) * R * 0.8;
+      const ry = (a * 180) / Math.PI;
+      const fe = gsap.parseEase('power2.inOut');
+      const f = fe(fan);
+      const g = fe(ring > 0 ? clamp(ring * 3) : 0);  // blend into the ring quickly once it starts
+      const x = lerp(lerp(sx, fx, f), rx, g);
+      const y = lerp(lerp(sy, fy, f), 0, g) + (1 - enter) * 260;
+      const z = lerp(0, rz, g);
+      const rot = RM ? 0 : lerp(lerp(sr, fr, f), 0, g);
+      const rotY = RM ? 0 : lerp(0, ry, g);
+      card.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${z.toFixed(1)}px) rotateY(${rotY.toFixed(2)}deg) rotateZ(${rot.toFixed(2)}deg)`;
+      const depth = lerp(1, 0.35 + 0.65 * (Math.cos(a) + 1) / 2, g);   // cards at the back recede
+      card.style.opacity = (enter * depth).toFixed(3);
+      card.style.zIndex = String(Math.round(1000 + z));
+      card.style.visibility = enter > 0 ? 'visible' : 'hidden';
+    });
+  };
+  ScrollTrigger.create({ trigger: s, start: 'top top', end: 'bottom bottom', onUpdate: (st) => place(st.progress), onRefresh: (st) => place(st.progress) });
+}
+
 /** Big numbers count up once when they first show. */
 function countUp(els) {
   els.forEach((el) => {
@@ -146,12 +192,13 @@ B.statement = (s) => {
   const tl = pinTL(s);
   const text = qs('.statement__text', s);
   const words = SplitText.create(text, { type: 'words' }).words;
-  const d = 0.16;
+  const d = 0.12;
   tl.fromTo(words, { x: M(-40), autoAlpha: 0, color: '#8F92E0' }, {
     x: 0, autoAlpha: 1, color: C.white, duration: d, ease: 'power2.out',
-    stagger: (0.55 - 0.06 - d) / Math.max(1, words.length - 1),
-  }, 0.06)
-    .to(text, { autoAlpha: 0, y: M(-30), duration: 0.1 }, 0.9);
+    stagger: (0.3 - 0.04 - d) / Math.max(1, words.length - 1),
+  }, 0.04);
+  // the ad types: stack rises p .2 → .32, fans out .3 → .5, then turns on a 3D ring to the end
+  orbitCards(s, qsa('.pcard', s), { enter: [0.2, 0.12], fan: [0.3, 0.2], ring: [0.5, 0.5] });
 };
 
 B.results = (s) => {
@@ -169,27 +216,21 @@ B.results = (s) => {
 
 B.vr = (s) => {
   const tl = pinTL(s);
-  const title = qs('.vr__title', s);
-  const lns = qsa('.ln', title);
-  // title rises p 0 → .17, lines fade away (last first) p .17 → .25 while it lifts
-  tl.fromTo(qsa('.ln__i', title), RM ? { autoAlpha: 0 } : { yPercent: 120, scale: 0.97 },
-    { ...(RM ? { autoAlpha: 1 } : { yPercent: 0, scale: 1 }), duration: 0.12, stagger: 0.025, ease: 'power2.out' }, 0)
-    .to([...lns].reverse(), { autoAlpha: 0, duration: 0.05, stagger: 0.015 }, 0.17)
-    .fromTo(title, { y: M(100) }, { y: M(-50), duration: 0.25 }, 0);
-  // copy on black: block (+ scrim) from p .45, words .5 → .7, button .6 → .72, out .8 → .86
+  // (no title screen: the section opens straight into the black portal, p 0 → .16)
+  // copy on black: block (+ scrim) from p .3, words .34 → .44, button .4 → .5, out .76 → .82
   const side = qs('.vr__side', s);
   const words = SplitText.create(qs('.vr__text', s), { type: 'words' }).words;
-  tl.fromTo(side, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.05 }, 0.45)
+  tl.fromTo(side, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.04 }, 0.3)
     .fromTo(words, { autoAlpha: 0, y: M(16), color: C.grey }, {
       autoAlpha: 1, y: 0, color: C.white, duration: 0.1, ease: 'power2.out',
       stagger: 0.1 / Math.max(1, words.length - 1),
-    }, 0.5)
-    .fromTo(qs('.vr__cta', s), { autoAlpha: 0, y: M(20) }, { autoAlpha: 1, y: 0, duration: 0.1 }, 0.6)
-    .to(side, { autoAlpha: 0, duration: 0.06 }, 0.8);
+    }, 0.34)
+    .fromTo(qs('.vr__cta', s), { autoAlpha: 0, y: M(20) }, { autoAlpha: 1, y: 0, duration: 0.1 }, 0.4)
+    .to(side, { autoAlpha: 0, duration: 0.06 }, 0.76);
   // fallback portal
   const portal = qs('.fb__portal', s);
-  tl.fromTo(portal, { scale: 0 }, { scale: 1, duration: 0.2, ease: 'power2.in' }, 0.25)
-    .to(portal, { autoAlpha: 0, duration: 0.04 }, 0.86);
+  tl.fromTo(portal, { scale: 0 }, { scale: 1, duration: 0.16, ease: 'power2.in' }, 0)
+    .to(portal, { autoAlpha: 0, duration: 0.04 }, 0.82);
 };
 
 B.expertises = (s) => {
@@ -347,48 +388,11 @@ B.bio = (s) => {
 B.credentials = (s) => {
   const title = qs('.cred__title', s);
   const cards = qsa('.lcard', s);
-  const n = cards.length;
   gsap.fromTo(qsa('.ln__i', title), RM ? { autoAlpha: 0 } : { yPercent: 115 }, {
     ...(RM ? { autoAlpha: 1 } : { yPercent: 0 }), ease: 'power2.out', stagger: 0.2,
     scrollTrigger: { trigger: s, start: 'top 60%', end: 'top top', scrub: true },
   });
-  const place = (p) => {
-    const W = innerWidth;
-    const cw = cards[0].offsetWidth;
-    const mobile = W < 768;
-    const enter = clamp(p / 0.12);                 // stack rises in
-    const fan = clamp((p - 0.1) / 0.25);           // stack → fan
-    const ring = clamp((p - 0.35) / 0.6);          // fan → turning ring
-    const R = mobile ? W * 0.55 : Math.min(W * 0.34, cw * 1.35);
-    cards.forEach((card, i) => {
-      const k = i - (n - 1) / 2;                   // -2 … 2
-      // stack: slight offsets
-      const sx = k * 6, sy = k * -6, sr = k * 2;
-      // fan: cards spread like a hand
-      const fx = k * (mobile ? cw * 0.28 : cw * 0.5);
-      const fy = Math.abs(k) * (mobile ? 14 : 24);
-      const fr = k * (mobile ? 7 : 9);
-      // ring: positions on a circle in the XZ plane, turning with scroll
-      const a = (k / n) * Math.PI * 2 + ring * Math.PI * 1.6;
-      const rx = Math.sin(a) * R;
-      const rz = (Math.cos(a) - 1) * R * 0.8;
-      const ry = (a * 180) / Math.PI;
-      const fe = gsap.parseEase('power2.inOut');
-      const f = fe(fan);
-      const g = fe(ring > 0 ? clamp(ring * 3) : 0);  // blend into the ring quickly once it starts
-      const x = lerp(lerp(sx, fx, f), rx, g);
-      const y = lerp(lerp(sy, fy, f), 0, g) + (1 - enter) * 260;
-      const z = lerp(0, rz, g);
-      const rot = RM ? 0 : lerp(lerp(sr, fr, f), 0, g);
-      const rotY = RM ? 0 : lerp(0, ry, g);
-      card.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${z.toFixed(1)}px) rotateY(${rotY.toFixed(2)}deg) rotateZ(${rot.toFixed(2)}deg)`;
-      const depth = lerp(1, 0.35 + 0.65 * (Math.cos(a) + 1) / 2, g);   // cards at the back recede
-      card.style.opacity = (enter * depth).toFixed(3);
-      card.style.zIndex = String(Math.round(1000 + z));
-      card.style.visibility = enter > 0 ? 'visible' : 'hidden';
-    });
-  };
-  ScrollTrigger.create({ trigger: s, start: 'top top', end: 'bottom bottom', onUpdate: (st) => place(st.progress), onRefresh: (st) => place(st.progress) });
+  orbitCards(s, cards, { enter: [0, 0.12], fan: [0.1, 0.25], ring: [0.35, 0.6] });
 };
 
 B.faq = (s) => {

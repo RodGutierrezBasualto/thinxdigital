@@ -1,6 +1,7 @@
-// Glass orbs.
+// Glass dots.
 //
-// 24 glass spheres (MeshPhysicalMaterial transmission, lit only by the HDR environment) that move between the
+// 24 flat glass dots — thin round discs with a rounded rim, like glass coins — (MeshPhysicalMaterial transmission,
+// lit only by the HDR environment) that move between the
 // formations of formations.js. Each frame:
 //   1. choreography.js gives a PLAN: formation `a`, optionally formation `b` and a blend `e` (staggered per orb);
 //   2. time-based OVERLAYS are applied on top: the settle intro (orbs come from the intro ring or from the route
@@ -8,7 +9,7 @@
 //   3. a gentle idle float is added and the meshes are updated.
 // Extra glass pieces live here too: two small SEED orbs (the background's circular colour reveals grow out of them),
 // the glass growth ARROW drawn through the statement's data points, and the fine LINES of the constellation.
-// A sphere looks the same however it's rotated, so a pose is just a position + a radius.
+// A pose is a position + a radius; each dot faces the camera and tilts slowly on its own so its rim catches the light.
 
 import * as THREE from 'three';
 import { N, poses, createFormations } from './formations.js';
@@ -26,7 +27,7 @@ function createGlass() {
     roughness: 0.12,
     transmission: 1,
     ior: 1.7,
-    thickness: 3.2, // × the mesh scale: a solid marble, so the orbs really lens what is behind them
+    thickness: 0.6, // × the mesh scale: a thin flat disc — the face stays clear, the rounded rim bends the light
     specularIntensity: 0.7,
     envMapIntensity: 0.9,
     clearcoat: 0.5,
@@ -37,11 +38,29 @@ function createGlass() {
   });
 }
 
+/**
+ * A flat glass dot of radius 1: a disc HALF thick, with a fully rounded rim, facing +Z.
+ * Built as a lathe profile (centre of the top face → rim arc → centre of the bottom face), so the normals are smooth.
+ */
+export function createDiscGeometry(segments = 48, HALF = 0.11) {
+  const pts = [new THREE.Vector2(0, HALF)];
+  const arc = 10;
+  for (let k = 0; k <= arc; k++) {
+    const a = Math.PI / 2 - (k / arc) * Math.PI; // +90° → -90° around the rim centre
+    pts.push(new THREE.Vector2(1 - HALF + Math.cos(a) * HALF, Math.sin(a) * HALF));
+  }
+  pts.push(new THREE.Vector2(0, -HALF));
+  const g = new THREE.LatheGeometry(pts, segments);
+  g.rotateX(Math.PI / 2); // lathe axis Y → disc faces ±Z
+  return g;
+}
+
 export function createOrbs({ segments = 48 } = {}) {
   const formations = createFormations();
   const { traits } = formations;
   const material = createGlass();
-  const geometry = new THREE.SphereGeometry(1, segments, Math.round(segments * 0.66));
+  const geometry = createDiscGeometry(Math.max(32, segments));
+  const knotGeometry = new THREE.SphereGeometry(1, 20, 14); // the arrow's joint stays a small bead
   const group = new THREE.Group();
   group.name = 'orbs';
 
@@ -71,7 +90,7 @@ export function createOrbs({ segments = 48 } = {}) {
   const head = new THREE.Group();
   const rodGeo = new THREE.CylinderGeometry(1, 1, 1, 12, 1);
   const rods = [0, 1].map(() => new THREE.Mesh(rodGeo, material));
-  const knot = new THREE.Mesh(geometry, material);
+  const knot = new THREE.Mesh(knotGeometry, material);
   head.add(...rods, knot);
   arrow.add(tube, head);
   group.add(arrow);
@@ -118,6 +137,11 @@ export function createOrbs({ segments = 48 } = {}) {
   }
 
   const _cam = new THREE.Matrix4();
+  const _camQ = new THREE.Quaternion();
+  const _tilt = new THREE.Quaternion();
+  const _euler = new THREE.Euler();
+  const _v1 = new THREE.Vector3();
+  const _v2 = new THREE.Vector3();
 
   /**
    * @param {object} f
@@ -168,7 +192,8 @@ export function createOrbs({ segments = 48 } = {}) {
     }
     for (let i = 0; i < N; i++) last[i].copy(out[i]);
 
-    // 3. apply (+ idle float)
+    // 3. apply (+ idle float); dots face the camera, each tilting on its own (never edge-on: max ~35°)
+    _cam.decompose(_v1, _camQ, _v2);
     const amp = (plan.idle ?? 0.5) * motion;
     for (let i = 0; i < N; i++) {
       const m = meshes[i];
@@ -182,6 +207,13 @@ export function createOrbs({ segments = 48 } = {}) {
         m.position.x += Math.sin(time * 0.37 + t.phase * 1.7) * 0.25 * amp;
       }
       m.scale.setScalar(o.s);
+      const w = 0.35 + 0.65 * motion; // keep a resting tilt even when motion is reduced
+      _euler.set(
+        (Math.sin(t.phase * 2.3) * 0.32 + Math.sin(time * 0.45 + t.phase) * 0.22) * w,
+        (Math.cos(t.phase * 1.7) * 0.32 + Math.sin(time * 0.38 + t.phase * 1.9) * 0.22) * w,
+        0
+      );
+      m.quaternion.copy(_camQ).multiply(_tilt.setFromEuler(_euler));
     }
 
     // seeds (camera space)

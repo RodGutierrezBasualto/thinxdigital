@@ -42,7 +42,7 @@ export function initHeader() {
     if (!active) return 'dark';
     const p = clamp(-rect.top / Math.max(1, rect.height - V));
     if (active.dataset.scene === 'hero') return p < 0.31 ? 'light' : 'dark';
-    if (active.dataset.scene === 'vr') return p > 0.36 && p < 0.87 ? 'light' : 'dark';
+    if (active.dataset.scene === 'vr') return p > 0.12 && p < 0.84 ? 'light' : 'dark';
     return DARK_BGS.has(active.dataset.bg) ? 'light' : 'dark';
   }
 
